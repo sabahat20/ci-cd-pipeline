@@ -4,4 +4,4 @@ def hours_saved(monthly_volume, aht_minutes, rules_based_pct):
         raise ValueError("Volume and AHT must not be negative")
     if not 0 <= rules_based_pct <= 100:
         raise ValueError("Rules-based % must be between 0 and 100")
-    return monthly_volume * aht_minutes / 60 * rules_based_pct / 100
+    return monthly_volume * aht_minutes / 30 * rules_based_pct / 100
