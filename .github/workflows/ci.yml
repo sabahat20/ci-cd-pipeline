@@ -1,0 +1,17 @@
+name: CI
+
+on:                          # WHEN the pipeline runs (the trigger)
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:                      # one job called "test"
+    runs-on: ubuntu-latest   # GitHub lends you a fresh Linux machine (a "runner")
+    steps:
+      - uses: actions/checkout@v6        # 1. download your code onto the runner
+      - uses: actions/setup-python@v6    # 2. install Python
+        with:
+          python-version: "3.12"
+      - run: pip install pytest          # 3. install the test tool
+      - run: pytest -q                   # 4. run the tests; any failure fails the pipeline
