@@ -1,17 +1,74 @@
-name: CI
+name: CI/CD
 
-on:                          # WHEN the pipeline runs (the trigger)
+on:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ci-cd-practice
+
 jobs:
-  test:                      # one job called "test"
-    runs-on: ubuntu-latest   # GitHub lends you a fresh Linux machine (a "runner")
+  test:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6        # 1. download your code onto the runner
-      - uses: actions/setup-python@v6    # 2. install Python
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install pytest          # 3. install the test tool
-      - run: pytest -q                   # 4. run the tests; any failure fails the pipeline
+      - run: pip install pytest
+      - run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build the image once, tagged with the commit ID
+        run: docker build -t "$IMAGE:${{ github.sha }}" .
+
+      - name: Smoke test - run the container
+        run: docker run --rm "$IMAGE:${{ github.sha }}"
+
+      - name: Scan the image for critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Log in to GitHub's container registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the image
+        if: github.ref == 'refs/heads/main'
+        run: docker push "$IMAGE:${{ github.sha }}"
+
+  deploy-test:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - run: echo "Deploying $IMAGE:${{ github.sha }} to TEST"
+
+  deploy-production:
+    needs: deploy-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Deploying $IMAGE:${{ github.sha }} to PRODUCTION"
